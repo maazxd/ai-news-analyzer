@@ -27,6 +27,3 @@ python-dotenv>=1.0.0
 
 # URL parsing for source analysis
 tldextract>=3.1.0
-
-# Article extraction
-newspaper3k>=0.2.8
