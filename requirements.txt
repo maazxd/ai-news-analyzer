@@ -27,3 +27,6 @@ python-dotenv>=1.0.0
 
 # URL parsing for source analysis
 tldextract>=3.1.0
+
+# Google API client for YouTube functionality
+google-api-python-client>=2.70.0
