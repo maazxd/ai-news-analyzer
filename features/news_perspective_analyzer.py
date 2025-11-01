@@ -11,9 +11,20 @@ from collections import defaultdict
 import re
 from collections import Counter
 
-from utils.config import get_secret_or_env
-from utils.models import analyze_sentiment
-from utils.source_data import get_source_political_leaning
+from utils.helpers import get_secret_or_env
+try:
+    from utils.models import analyze_sentiment
+except ImportError:
+    # Fallback if models import fails
+    def analyze_sentiment(text):
+        return 0.0, 'neutral'
+
+try:
+    from utils.source_data import get_source_political_leaning
+except ImportError:
+    # Fallback if source_data import fails
+    def get_source_political_leaning(url):
+        return 'center'
 
 # Bias color mapping
 BIAS_COLORS = {
