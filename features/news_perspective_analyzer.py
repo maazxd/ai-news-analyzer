@@ -18,8 +18,7 @@ from collections import defaultdict
 import time
 
 # Import existing utilities
-from utils.config import get_secret_or_env
-from utils.helpers import analyze_sentiment
+from utils.helpers import get_secret_or_env, analyze_sentiment
 from utils.source_data import get_source_credibility
 
 
