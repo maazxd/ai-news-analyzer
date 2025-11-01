@@ -6,7 +6,7 @@ FEATURE_ICONS = {
     "Live News Feed": "📡", 
     "Article Summary": "📋",
     "URL Analysis": "🔗",
-    "Fact Checker": "🔍",
+    "Geographic News Map": "�️",
     "Translation": "🌐",
     "Source Checker": "🏛️"
 }

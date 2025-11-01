@@ -16,7 +16,7 @@ from features import (
     run_fetch_news_feature,
     run_summarize_feature,
     run_summarize_link_feature,
-    run_fact_check_feature,
+    run_geographic_news_map_feature,
     run_ai_insight_feature,
     run_translate_feature,
     run_credibility_feature
@@ -106,8 +106,8 @@ elif choice == "Article Summary":
 elif choice == "URL Analysis":
     run_summarize_link_feature(fetch_article_text)
 
-elif choice == "Fact Checker":
-    run_fact_check_feature(fetch_article_text)
+elif choice == "Geographic News Map":
+    run_geographic_news_map_feature()
 
 elif choice == "Translation":
     run_translate_feature(fetch_article_text)
