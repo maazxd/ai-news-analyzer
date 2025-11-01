@@ -16,6 +16,7 @@ from features import (
     run_fetch_news_feature,
     run_summarize_feature,
     run_summarize_link_feature,
+    run_news_perspective_analyzer_feature,
     run_ai_insight_feature,
     run_translate_feature,
     run_credibility_feature
@@ -104,6 +105,9 @@ elif choice == "Article Summary":
 
 elif choice == "URL Analysis":
     run_summarize_link_feature(fetch_article_text)
+
+elif choice == "News Perspective Analyzer":
+    run_news_perspective_analyzer_feature()
 
 elif choice == "Translation":
     run_translate_feature(fetch_article_text)
