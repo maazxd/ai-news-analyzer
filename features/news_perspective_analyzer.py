@@ -107,18 +107,6 @@ def render_news_perspective_analyzer():
         if 'analysis_topic' in st.session_state:
             del st.session_state.analysis_topic
     
-    # Tips for better results
-    with st.expander("💡 Tips for Better Results"):
-        st.markdown("""
-        **For best analysis results:**
-        - Use **broad topics** that major news outlets cover (e.g., "climate change" vs. specific conference names)
-        - Choose **current topics** from the last week for more articles
-        - Try **political topics** that naturally show different perspectives
-        - Use **1-3 word topics** rather than long phrases
-        
-        **Great topics to try:** elections, healthcare, economy, foreign policy, Supreme Court, immigration
-        """)
-    
     if analyze_button and topic:
         analyze_news_perspective(topic)
     elif analyze_button and not topic:
