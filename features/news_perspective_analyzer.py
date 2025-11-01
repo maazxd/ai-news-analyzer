@@ -66,7 +66,7 @@ def render_news_perspective_analyzer():
         st.markdown("""
         **The News Perspective Analyzer reveals media bias by comparing how different sources report the same story:**
         
-        🔍 **Multi-Source Collection**: Fetches the same story from left-leaning, center, and right-leaning sources
+        🔍 **Multi-Source Collection**: Fetches articles about your topic from diverse political perspectives
         
         📊 **Bias Spectrum Visualization**: Interactive chart showing political alignment vs sentiment analysis
         
@@ -77,6 +77,16 @@ def render_news_perspective_analyzer():
         🎯 **Educational Value**: Helps users identify bias patterns and think more critically about news consumption
         """)
     
+    # Sample topics for better user experience
+    st.markdown("### 💡 Try These Popular Topics:")
+    sample_topics = ["climate change", "economic policy", "healthcare", "technology regulation", "immigration"]
+    
+    cols = st.columns(5)
+    for i, topic in enumerate(sample_topics):
+        with cols[i]:
+            if st.button(f"📰 {topic.title()}", key=f"sample_{i}"):
+                st.session_state.analysis_topic = topic
+    
     # Input section
     st.subheader("🔎 Analyze News Coverage")
     
@@ -84,11 +94,30 @@ def render_news_perspective_analyzer():
     with col1:
         topic = st.text_input(
             "Enter a news topic to analyze across the political spectrum:",
-            placeholder="e.g., climate summit, election results, economic policy"
+            placeholder="e.g., climate summit, election results, economic policy",
+            value=st.session_state.get('analysis_topic', ''),
+            key="topic_input"
         )
     
     with col2:
         analyze_button = st.button("🔍 Analyze Coverage", type="primary")
+    
+    # Clear previous topic selection
+    if topic != st.session_state.get('analysis_topic', ''):
+        if 'analysis_topic' in st.session_state:
+            del st.session_state.analysis_topic
+    
+    # Tips for better results
+    with st.expander("💡 Tips for Better Results"):
+        st.markdown("""
+        **For best analysis results:**
+        - Use **broad topics** that major news outlets cover (e.g., "climate change" vs. specific conference names)
+        - Choose **current topics** from the last week for more articles
+        - Try **political topics** that naturally show different perspectives
+        - Use **1-3 word topics** rather than long phrases
+        
+        **Great topics to try:** elections, healthcare, economy, foreign policy, Supreme Court, immigration
+        """)
     
     if analyze_button and topic:
         analyze_news_perspective(topic)
@@ -98,18 +127,38 @@ def render_news_perspective_analyzer():
 
 def analyze_news_perspective(topic):
     """Main analysis function that orchestrates the entire perspective analysis"""
+    if not topic or len(topic.strip()) < 3:
+        st.error("⚠️ Please enter a topic with at least 3 characters")
+        return
+    
     with st.spinner("🔍 Analyzing news coverage across the political spectrum..."):
         # Step 1: Collect articles from different sources
         st.write("📰 **Step 1**: Collecting articles from diverse sources...")
         articles_by_bias = collect_multi_source_articles(topic)
         
-        if not any(articles_by_bias.values()):
-            st.error("❌ No articles found for this topic. Please try a different search term.")
+        # Check if we have any articles
+        total_articles = sum(len(articles) for articles in articles_by_bias.values())
+        if total_articles == 0:
+            st.error("❌ No articles found for this topic. Please try:")
+            st.markdown("""
+            - A more general topic (e.g., "climate change" instead of specific event names)
+            - Current news topics (articles from the last week)
+            - Topics that major news outlets typically cover
+            """)
             return
+        
+        # Check if we have bias diversity
+        bias_categories_found = sum(1 for articles in articles_by_bias.values() if len(articles) > 0)
+        if bias_categories_found < 2:
+            st.warning("⚠️ Limited political diversity in sources found. Results may not show comprehensive bias analysis.")
         
         # Step 2: Analyze sentiment and bias
         st.write("🧠 **Step 2**: Analyzing sentiment and bias patterns...")
         analyzed_articles = analyze_articles_sentiment_bias(articles_by_bias)
+        
+        if not analyzed_articles:
+            st.error("❌ Failed to analyze articles. Please try again.")
+            return
         
         # Step 3: Create visualizations
         st.write("📊 **Step 3**: Creating bias spectrum visualization...")
@@ -122,9 +171,12 @@ def analyze_news_perspective(topic):
         # Step 5: Key differences analysis
         st.write("💡 **Step 5**: Analyzing key differences and insights...")
         analyze_key_differences(analyzed_articles)
+        
+        # Success message
+        st.success(f"🎯 **Analysis Complete!** Successfully analyzed {len(analyzed_articles)} articles across {bias_categories_found} political perspectives.")
 
 
-def collect_multi_source_articles(topic, max_per_bias=3):
+def collect_multi_source_articles(topic, max_per_bias=2):
     """Collect articles from different bias categories"""
     api_key = get_secret_or_env("NEWS_API_KEY")
     articles_by_bias = {'left': [], 'center': [], 'right': []}
@@ -137,40 +189,53 @@ def collect_multi_source_articles(topic, max_per_bias=3):
     progress_text = st.empty()
     
     try:
-        total_bias_categories = len(NEWS_SOURCES)
-        current_category = 0
+        # Use general search first, then filter by domain
+        url = "https://newsapi.org/v2/everything"
+        params = {
+            'q': topic,
+            'sortBy': 'publishedAt',
+            'pageSize': 50,  # Get more articles to filter from
+            'language': 'en',
+            'apiKey': api_key,
+            'from': (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')  # Last 7 days
+        }
         
-        for bias_type, sources in NEWS_SOURCES.items():
-            progress_text.text(f"Fetching from {bias_type} sources...")
+        progress_text.text("Fetching articles from News API...")
+        response = requests.get(url, params=params, timeout=10)
+        data = response.json()
+        
+        if not data.get('articles'):
+            st.warning("⚠️ No articles found for this topic from News API")
+            progress_bar.empty()
+            progress_text.empty()
+            return articles_by_bias
+        
+        progress_text.text("Categorizing articles by political bias...")
+        
+        # Categorize articles by source bias
+        all_articles = data['articles']
+        categorized_count = 0
+        
+        for article in all_articles:
+            source_name = article.get('source', {}).get('name', '').lower()
+            article_url = article.get('url', '').lower()
             
-            # Search for articles from sources in this bias category
-            sources_list = ','.join(sources.keys())
+            # Determine bias category based on source
+            bias_category = determine_source_bias(source_name, article_url)
             
-            url = "https://newsapi.org/v2/everything"
-            params = {
-                'q': topic,
-                'sources': sources_list,
-                'sortBy': 'publishedAt',
-                'pageSize': max_per_bias * 2,  # Get extra to filter
-                'language': 'en',
-                'apiKey': api_key
-            }
+            if bias_category and len(articles_by_bias[bias_category]) < max_per_bias:
+                processed_article = process_article(article, bias_category)
+                if processed_article:
+                    articles_by_bias[bias_category].append(processed_article)
+                    categorized_count += 1
             
-            response = requests.get(url, params=params)
-            data = response.json()
+            # Update progress
+            progress = min(categorized_count / (max_per_bias * 3), 1.0)
+            progress_bar.progress(progress)
             
-            if data.get('articles'):
-                # Process and filter articles
-                for article in data['articles'][:max_per_bias]:
-                    processed_article = process_article(article, bias_type)
-                    if processed_article:
-                        articles_by_bias[bias_type].append(processed_article)
-            
-            current_category += 1
-            progress_bar.progress(current_category / total_bias_categories)
-            
-            # Small delay to avoid rate limiting
-            time.sleep(0.5)
+            # Stop if we have enough articles from each category
+            if all(len(articles_by_bias[bias]) >= max_per_bias for bias in ['left', 'center', 'right']):
+                break
         
         progress_bar.empty()
         progress_text.empty()
@@ -178,23 +243,62 @@ def collect_multi_source_articles(topic, max_per_bias=3):
         # Display collection summary
         total_articles = sum(len(articles) for articles in articles_by_bias.values())
         if total_articles > 0:
-            st.success(f"✅ Successfully collected {total_articles} articles across the political spectrum")
+            st.success(f"✅ Successfully categorized {total_articles} articles across the political spectrum")
             
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("Left-leaning", len(articles_by_bias['left']), delta=None)
+                st.metric("Left-leaning", len(articles_by_bias['left']))
             with col2:
-                st.metric("Center", len(articles_by_bias['center']), delta=None)
+                st.metric("Center", len(articles_by_bias['center']))
             with col3:
-                st.metric("Right-leaning", len(articles_by_bias['right']), delta=None)
+                st.metric("Right-leaning", len(articles_by_bias['right']))
         else:
-            st.warning("⚠️ No articles found from the specified sources")
+            st.warning("⚠️ Could not categorize any articles by political bias. Try a more specific topic.")
         
         return articles_by_bias
         
+    except requests.RequestException as e:
+        st.error(f"❌ Network error: {str(e)}")
+        progress_bar.empty()
+        progress_text.empty()
+        return articles_by_bias
     except Exception as e:
         st.error(f"❌ Error collecting articles: {str(e)}")
+        progress_bar.empty()
+        progress_text.empty()
         return articles_by_bias
+
+
+def determine_source_bias(source_name, article_url):
+    """Determine political bias category based on source name and URL"""
+    # Enhanced source mapping with more sources
+    source_mapping = {
+        'left': [
+            'cnn', 'guardian', 'msnbc', 'huffpost', 'washington post', 'washingtonpost',
+            'new york times', 'nytimes', 'atlantic', 'vox', 'mother jones', 'salon',
+            'daily beast', 'buzzfeed', 'slate', 'politico', 'abc news', 'cbs news'
+        ],
+        'center': [
+            'reuters', 'bbc', 'associated press', 'ap news', 'npr', 'axios',
+            'pbs', 'usa today', 'usatoday', 'time', 'newsweek', 'bloomberg',
+            'financial times', 'christian science monitor', 'the hill'
+        ],
+        'right': [
+            'fox news', 'foxnews', 'wall street journal', 'wsj', 'new york post',
+            'nypost', 'daily mail', 'breitbart', 'national review', 'washington times',
+            'daily wire', 'townhall', 'federalist', 'washington examiner'
+        ]
+    }
+    
+    # Check source name and URL for bias indicators
+    text_to_check = f"{source_name} {article_url}".lower()
+    
+    for bias_type, sources in source_mapping.items():
+        for source in sources:
+            if source in text_to_check:
+                return bias_type
+    
+    return None  # Unknown bias
 
 
 def process_article(article, bias_type):
@@ -291,61 +395,104 @@ def create_bias_spectrum_chart(articles):
     
     df = pd.DataFrame(articles)
     
-    # Create the scatter plot
+    # Enhanced scatter plot with better interactivity
     fig = px.scatter(
         df,
         x='bias_score',
         y='sentiment_score',
         color='bias_category',
-        size=[abs(score) + 0.5 for score in df['sentiment_score']],  # Size based on sentiment intensity
-        hover_data=['source', 'credibility'],
-        title="Political Bias vs Sentiment Analysis",
-        labels={
-            'bias_score': 'Political Bias',
-            'sentiment_score': 'Sentiment Score',
-            'bias_category': 'Source Type'
+        size=[abs(score) * 10 + 8 for score in df['sentiment_score']],  # Better size scaling
+        hover_data={
+            'source': True,
+            'credibility': True,
+            'bias_score': False,
+            'sentiment_score': ':.3f',
+            'bias_category': False
         },
-        color_discrete_map=BIAS_COLORS
+        hover_name='title',
+        title="Political Bias vs Sentiment Analysis - Interactive View",
+        labels={
+            'bias_score': 'Political Bias Spectrum',
+            'sentiment_score': 'Sentiment Score',
+            'bias_category': 'Source Category'
+        },
+        color_discrete_map=BIAS_COLORS,
+        height=600
     )
     
-    # Customize the chart
+    # Enhanced customization
     fig.update_layout(
         xaxis=dict(
             tickmode='array',
             tickvals=[-1, 0, 1],
-            ticktext=['Left-leaning', 'Center', 'Right-leaning'],
-            range=[-1.5, 1.5]
+            ticktext=['Left-Leaning', 'Center', 'Right-Leaning'],
+            range=[-1.5, 1.5],
+            title_font_size=14
         ),
         yaxis=dict(
-            title='Sentiment Score',
-            range=[-1.1, 1.1]
+            title='Sentiment Score (Negative ← → Positive)',
+            range=[-1.1, 1.1],
+            title_font_size=14
         ),
-        height=500,
-        showlegend=True
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        ),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)'
     )
     
-    # Add quadrant lines
+    # Add quadrant lines and annotations
     fig.add_hline(y=0, line_dash="dot", line_color="gray", opacity=0.5)
     fig.add_vline(x=0, line_dash="dot", line_color="gray", opacity=0.5)
     
+    # Add quadrant labels
+    fig.add_annotation(x=-0.75, y=0.8, text="Left + Positive", showarrow=False, font=dict(size=10, color="gray"))
+    fig.add_annotation(x=0.75, y=0.8, text="Right + Positive", showarrow=False, font=dict(size=10, color="gray"))
+    fig.add_annotation(x=-0.75, y=-0.8, text="Left + Negative", showarrow=False, font=dict(size=10, color="gray"))
+    fig.add_annotation(x=0.75, y=-0.8, text="Right + Negative", showarrow=False, font=dict(size=10, color="gray"))
+    
     st.plotly_chart(fig, use_container_width=True)
     
-    # Add interpretation
-    with st.expander("📖 How to Read This Chart"):
-        st.markdown("""
-        **X-Axis (Political Bias)**: Left (-1) ← Center (0) → Right (+1)
+    # Enhanced interpretation with insights
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        with st.expander("📖 How to Read This Chart"):
+            st.markdown("""
+            **Axes Explained:**
+            - **X-Axis**: Political bias from Left (-1) to Right (+1)
+            - **Y-Axis**: Sentiment from Negative (-1) to Positive (+1)
+            - **Bubble Size**: Larger = stronger sentiment (positive or negative)
+            - **Colors**: 🔵 Left, 🟢 Center, 🔴 Right
+            """)
+    
+    with col2:
+        with st.expander("🔍 What to Look For"):
+            st.markdown("""
+            **Key Patterns:**
+            - **Clustering**: Do similar sources share sentiment?
+            - **Spread**: Wide sentiment range indicates controversy
+            - **Outliers**: Sources reporting very differently
+            - **Quadrants**: Which political-sentiment combinations appear?
+            """)
+    
+    # Quick insights
+    if len(df) > 1:
+        left_avg = df[df['bias_category'] == 'left']['sentiment_score'].mean() if len(df[df['bias_category'] == 'left']) > 0 else 0
+        right_avg = df[df['bias_category'] == 'right']['sentiment_score'].mean() if len(df[df['bias_category'] == 'right']) > 0 else 0
+        center_avg = df[df['bias_category'] == 'center']['sentiment_score'].mean() if len(df[df['bias_category'] == 'center']) > 0 else 0
         
-        **Y-Axis (Sentiment)**: Negative (-1) ← Neutral (0) → Positive (+1)
-        
-        **Bubble Size**: Larger bubbles indicate stronger sentiment (positive or negative)
-        
-        **Colors**: 🔵 Blue = Left-leaning, 🟢 Green = Center, 🔴 Red = Right-leaning
-        
-        **Patterns to Look For**:
-        - Clustering: Do similar sources have similar sentiment?
-        - Spread: How much variation exists across the spectrum?
-        - Outliers: Which sources report differently than others in their category?
-        """)
+        if abs(left_avg - right_avg) > 0.3:
+            st.info(f"🎯 **Bias Alert**: Significant sentiment difference detected between left ({left_avg:.2f}) and right ({right_avg:.2f}) sources!")
+        elif abs(max(left_avg, right_avg, center_avg) - min(left_avg, right_avg, center_avg)) < 0.2:
+            st.success("✅ **Consensus Found**: Most sources show similar sentiment about this topic!")
+        else:
+            st.warning("⚖️ **Mixed Coverage**: Sources show varied sentiment - consider multiple perspectives!")
 
 
 def create_side_by_side_comparison(articles):
