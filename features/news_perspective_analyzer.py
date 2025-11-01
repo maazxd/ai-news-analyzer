@@ -322,35 +322,88 @@ def analyze_articles_sentiment_bias(articles_by_bias):
     analyzed_articles = []
     
     total_articles = sum(len(articles) for articles in articles_by_bias.values())
+    if total_articles == 0:
+        return analyzed_articles
+        
     progress_bar = st.progress(0)
     current_article = 0
     
     for bias_type, articles in articles_by_bias.items():
         for article in articles:
-            # Analyze sentiment
-            text_for_analysis = f"{article['title']} {article['description']}"
-            sentiment_result = analyze_sentiment(text_for_analysis)
-            
-            # Extract sentiment data
-            if isinstance(sentiment_result, dict):
-                sentiment_score = sentiment_result.get('compound', 0)
+            try:
+                # Analyze sentiment with better text preparation
+                title = article.get('title', '')
+                description = article.get('description', '')
+                
+                # Ensure we have text to analyze
+                if not title and not description:
+                    text_for_analysis = "No content available"
+                else:
+                    text_for_analysis = f"{title}. {description}".strip()
+                
+                # Call sentiment analysis
+                sentiment_result = analyze_sentiment(text_for_analysis)
+                
+                # Handle different return formats from sentiment analysis
+                if isinstance(sentiment_result, dict):
+                    # VADER-style return with compound score
+                    sentiment_score = sentiment_result.get('compound', 0)
+                elif isinstance(sentiment_result, (int, float)):
+                    # Direct numerical score
+                    sentiment_score = float(sentiment_result)
+                else:
+                    # Fallback: analyze manually based on text
+                    sentiment_score = simple_sentiment_analysis(text_for_analysis)
+                
+                # Ensure score is in valid range
+                sentiment_score = max(-1.0, min(1.0, sentiment_score))
                 sentiment_label = get_sentiment_label(sentiment_score)
-            else:
-                sentiment_score = 0
-                sentiment_label = 'Neutral'
-            
-            # Add analysis results
-            article['sentiment_score'] = sentiment_score
-            article['sentiment_label'] = sentiment_label
-            article['bias_score'] = get_bias_score(bias_type)
-            
-            analyzed_articles.append(article)
+                
+                # Add analysis results
+                article['sentiment_score'] = sentiment_score
+                article['sentiment_label'] = sentiment_label
+                article['bias_score'] = get_bias_score(bias_type)
+                
+                analyzed_articles.append(article)
+                
+            except Exception as e:
+                # Fallback for failed sentiment analysis
+                st.warning(f"⚠️ Sentiment analysis failed for article: {e}")
+                article['sentiment_score'] = 0.0
+                article['sentiment_label'] = 'Neutral'
+                article['bias_score'] = get_bias_score(bias_type)
+                analyzed_articles.append(article)
             
             current_article += 1
             progress_bar.progress(current_article / total_articles)
     
     progress_bar.empty()
     return analyzed_articles
+
+
+def simple_sentiment_analysis(text):
+    """Simple fallback sentiment analysis using keyword matching"""
+    if not text:
+        return 0.0
+    
+    text_lower = text.lower()
+    
+    # Positive keywords
+    positive_words = ['good', 'great', 'excellent', 'positive', 'success', 'win', 'victory', 'progress', 'improve', 'better', 'strong', 'up', 'rise', 'gain', 'benefit', 'growth']
+    
+    # Negative keywords  
+    negative_words = ['bad', 'terrible', 'negative', 'fail', 'failure', 'lose', 'loss', 'decline', 'worse', 'weak', 'down', 'fall', 'crisis', 'problem', 'concern', 'worry']
+    
+    positive_count = sum(1 for word in positive_words if word in text_lower)
+    negative_count = sum(1 for word in negative_words if word in text_lower)
+    
+    # Calculate simple sentiment score
+    total_words = len(text_lower.split())
+    if total_words == 0:
+        return 0.0
+        
+    sentiment = (positive_count - negative_count) / max(total_words, 1)
+    return max(-1.0, min(1.0, sentiment * 5))  # Scale and clamp
 
 
 def get_sentiment_label(score):
@@ -690,16 +743,23 @@ def analyze_key_differences(articles):
         df_sources = pd.DataFrame(source_data)
         st.dataframe(df_sources, use_container_width=True)
         
-        # Source insights
+        # Source insights with better handling
         if len(df_sources) > 1:
-            most_positive = df_sources.loc[df_sources['Sentiment Score'].idxmax()]
-            most_negative = df_sources.loc[df_sources['Sentiment Score'].idxmin()]
+            max_sentiment = df_sources['Sentiment Score'].max()
+            min_sentiment = df_sources['Sentiment Score'].min()
             
-            col1, col2 = st.columns(2)
-            with col1:
-                st.success(f"📈 **Most Positive**: {most_positive['Source']} ({most_positive['Sentiment Score']:.3f})")
-            with col2:
-                st.error(f"📉 **Most Negative**: {most_negative['Source']} ({most_negative['Sentiment Score']:.3f})")
+            # Only show insights if there's actual variation in sentiment
+            if abs(max_sentiment - min_sentiment) > 0.001:  # Small threshold for floating point comparison
+                most_positive = df_sources.loc[df_sources['Sentiment Score'].idxmax()]
+                most_negative = df_sources.loc[df_sources['Sentiment Score'].idxmin()]
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.success(f"📈 **Most Positive**: {most_positive['Source']} ({most_positive['Sentiment Score']:.3f})")
+                with col2:
+                    st.error(f"📉 **Most Negative**: {most_negative['Source']} ({most_negative['Sentiment Score']:.3f})")
+            else:
+                st.info("📊 **Note**: All sources show similar sentiment scores for this topic - this could indicate broad consensus or neutral reporting.")
     
     with tabs[3]:  # Key insights
         st.write("**Summary of bias patterns and media landscape insights:**")
