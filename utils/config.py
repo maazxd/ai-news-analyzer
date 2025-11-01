@@ -1,6 +1,4 @@
-"""
-Configuration and constants for the News Analyzer Platform
-"""
+
 
 # Core features - streamlined and focused
 FEATURE_ICONS = {
@@ -9,7 +7,6 @@ FEATURE_ICONS = {
     "Article Summary": "📋",
     "URL Analysis": "🔗",
     "Fact Checker": "🔍",
-    "Deep Analysis": "📊",
     "Translation": "🌐",
     "Source Checker": "🏛️"
 }

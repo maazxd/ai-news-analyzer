@@ -109,9 +109,6 @@ elif choice == "URL Analysis":
 elif choice == "Fact Checker":
     run_fact_check_feature(fetch_article_text)
 
-elif choice == "Deep Analysis":
-    run_ai_insight_feature()
-
 elif choice == "Translation":
     run_translate_feature(fetch_article_text)
 
