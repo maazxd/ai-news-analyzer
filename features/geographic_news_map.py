@@ -13,44 +13,45 @@ from utils.source_data import get_source_credibility
 import re
 
 
-def run_geographic_news_map_feature():
-    st.header("🗺️ Geographic News Mapper")
-    st.markdown("*Explore news stories around the world on an interactive map*")
+def render_geographic_news_map():
+    """Render the Geographic News Map interface"""
+    st.title("🗺️ Geographic News Mapper")
+    st.write("Explore news stories plotted on an interactive world map based on their geographic relevance.")
     
-    col1, col2 = st.columns([2, 1])
-    
+    # Input for search query
+    col1, col2 = st.columns([3, 1])
     with col1:
-        search_query = st.text_input(
-            "Search for news topic:",
-            placeholder="e.g., 'technology', 'economy', 'climate'",
-            value="technology"
-        )
-    
+        query = st.text_input("Enter news topic to search:", 
+                             placeholder="e.g., climate change, technology, politics")
     with col2:
-        max_articles = st.selectbox(
-            "Max articles:",
-            [10, 20, 30, 50],
-            index=1
-        )
+        search_button = st.button("🔍 Search & Map", type="primary")
     
-    if st.button("🌍 Map Global News", type="primary"):
-        with st.spinner("Mapping news stories around the world..."):
-            news_data = fetch_geographic_news(search_query, max_articles)
+    if search_button and query:
+        with st.spinner("Fetching and analyzing news articles..."):
+            news_data = fetch_geographic_news(query, max_results=20)
             
             if news_data:
-                # Create tabs for different views
-                tab1, tab2, tab3 = st.tabs(["🗺️ World Map", "📊 Regional Analysis", "📰 Story Details"])
+                # Create and display the map
+                fig = create_world_map(news_data)
+                st.plotly_chart(fig, use_container_width=True)
                 
-                with tab1:
-                    display_world_map(news_data)
+                # Display summary statistics
+                display_geographic_summary(news_data)
                 
-                with tab2:
-                    display_regional_analysis(news_data)
+                # Display articles by region
+                display_articles_by_region(news_data)
                 
-                with tab3:
-                    display_story_details(news_data)
+                # Show info about Global articles if many exist
+                global_count = sum(1 for item in news_data if item['country'] == 'Global')
+                if global_count > len(news_data) * 0.5:  # If more than 50% are Global
+                    st.info(f"ℹ️ {global_count} out of {len(news_data)} articles were categorized as 'Global' "
+                           "as they didn't contain specific geographic references. "
+                           "Try searching for location-specific terms for more precise mapping.")
             else:
-                st.warning("No geolocated news found for this topic. Try a different search term.")
+                st.warning("No news articles found for this topic. Please try a different search term.")
+    
+    elif not query and search_button:
+        st.warning("Please enter a search topic first.")
 
 
 def fetch_geographic_news(query, max_results=20):
@@ -72,100 +73,125 @@ def fetch_geographic_news(query, max_results=20):
         
         if data.get('articles'):
             news_data = []
+            total_articles = len(data['articles'])
             
-            for article in data['articles']:
-                # Extract geographic information
+            st.write(f"📰 Found {total_articles} articles, processing for geographic data...")
+            
+            for i, article in enumerate(data['articles']):
+                # Extract geographic information (now always returns a location)
                 location_info = extract_location_from_article(article)
                 
-                if location_info:
-                    # Analyze sentiment
-                    text_for_analysis = f"{article.get('title', '')} {article.get('description', '')}"
-                    sentiment = analyze_sentiment(text_for_analysis)
-                    sentiment_score = sentiment.get('compound', 0) if isinstance(sentiment, dict) else 0
-                    
-                    # Get source credibility
-                    source_name = article.get('source', {}).get('name', 'Unknown')
-                    url_domain = article.get('url', '')
-                    credibility = get_source_credibility(url_domain)
-                    
-                    news_item = {
-                        'title': article.get('title', ''),
-                        'description': article.get('description', ''),
-                        'url': article.get('url', ''),
-                        'source': source_name,
-                        'published_at': article.get('publishedAt', ''),
-                        'country': location_info['country'],
-                        'city': location_info.get('city', ''),
-                        'latitude': location_info['latitude'],
-                        'longitude': location_info['longitude'],
-                        'sentiment_score': sentiment_score,
-                        'sentiment_label': get_sentiment_label(sentiment_score),
-                        'credibility': credibility[0] if credibility else 'Unknown'
-                    }
-                    news_data.append(news_item)
+                # Analyze sentiment
+                text_for_analysis = f"{article.get('title', '')} {article.get('description', '')}"
+                sentiment = analyze_sentiment(text_for_analysis)
+                sentiment_score = sentiment.get('compound', 0) if isinstance(sentiment, dict) else 0
+                
+                # Get source credibility
+                source_name = article.get('source', {}).get('name', 'Unknown')
+                url_domain = article.get('url', '')
+                credibility = get_source_credibility(url_domain)
+                
+                news_item = {
+                    'title': article.get('title', ''),
+                    'description': article.get('description', ''),
+                    'url': article.get('url', ''),
+                    'source': source_name,
+                    'published_at': article.get('publishedAt', ''),
+                    'country': location_info['country'],
+                    'city': location_info.get('city', ''),
+                    'latitude': location_info['latitude'],
+                    'longitude': location_info['longitude'],
+                    'sentiment_score': sentiment_score,
+                    'sentiment_label': get_sentiment_label(sentiment_score),
+                    'credibility': credibility[0] if credibility else 'Unknown'
+                }
+                news_data.append(news_item)
             
+            st.success(f"✅ Successfully mapped {len(news_data)} articles to geographic locations!")
             return news_data
+        else:
+            st.warning("No articles found from News API. Please check your API key or try a different search term.")
+            return []
         
     except Exception as e:
         st.error(f"Error fetching news: {str(e)}")
         return []
-    
-    return []
 
 
 def extract_location_from_article(article):
     """Extract geographic information from article content"""
-    # This is a simplified location extraction
-    # In a production app, you'd use a proper NLP library like spaCy or a geocoding service
-    
     text = f"{article.get('title', '')} {article.get('description', '')} {article.get('content', '')}"
     
-    # Country mappings with major cities and coordinates
+    # Enhanced location database with more variations
     location_database = {
-        # Major countries and cities
+        # United States variations
         'united states': {'country': 'United States', 'city': 'Washington D.C.', 'lat': 38.9072, 'lon': -77.0369},
         'usa': {'country': 'United States', 'city': 'Washington D.C.', 'lat': 38.9072, 'lon': -77.0369},
+        'america': {'country': 'United States', 'city': 'Washington D.C.', 'lat': 38.9072, 'lon': -77.0369},
+        'us': {'country': 'United States', 'city': 'Washington D.C.', 'lat': 38.9072, 'lon': -77.0369},
         'new york': {'country': 'United States', 'city': 'New York', 'lat': 40.7128, 'lon': -74.0060},
         'california': {'country': 'United States', 'city': 'Los Angeles', 'lat': 34.0522, 'lon': -118.2437},
         'texas': {'country': 'United States', 'city': 'Austin', 'lat': 30.2672, 'lon': -97.7431},
+        'florida': {'country': 'United States', 'city': 'Miami', 'lat': 25.7617, 'lon': -80.1918},
+        'washington': {'country': 'United States', 'city': 'Washington D.C.', 'lat': 38.9072, 'lon': -77.0369},
         
+        # United Kingdom variations
         'united kingdom': {'country': 'United Kingdom', 'city': 'London', 'lat': 51.5074, 'lon': -0.1278},
         'uk': {'country': 'United Kingdom', 'city': 'London', 'lat': 51.5074, 'lon': -0.1278},
+        'britain': {'country': 'United Kingdom', 'city': 'London', 'lat': 51.5074, 'lon': -0.1278},
+        'england': {'country': 'United Kingdom', 'city': 'London', 'lat': 51.5074, 'lon': -0.1278},
         'london': {'country': 'United Kingdom', 'city': 'London', 'lat': 51.5074, 'lon': -0.1278},
         
+        # China variations
         'china': {'country': 'China', 'city': 'Beijing', 'lat': 39.9042, 'lon': 116.4074},
+        'chinese': {'country': 'China', 'city': 'Beijing', 'lat': 39.9042, 'lon': 116.4074},
         'beijing': {'country': 'China', 'city': 'Beijing', 'lat': 39.9042, 'lon': 116.4074},
         'shanghai': {'country': 'China', 'city': 'Shanghai', 'lat': 31.2304, 'lon': 121.4737},
         
+        # India variations
         'india': {'country': 'India', 'city': 'New Delhi', 'lat': 28.6139, 'lon': 77.2090},
+        'indian': {'country': 'India', 'city': 'New Delhi', 'lat': 28.6139, 'lon': 77.2090},
         'delhi': {'country': 'India', 'city': 'New Delhi', 'lat': 28.6139, 'lon': 77.2090},
         'mumbai': {'country': 'India', 'city': 'Mumbai', 'lat': 19.0760, 'lon': 72.8777},
         'bangalore': {'country': 'India', 'city': 'Bangalore', 'lat': 12.9716, 'lon': 77.5946},
         
-        'japan': {'country': 'Japan', 'city': 'Tokyo', 'lat': 35.6762, 'lon': 139.6503},
-        'tokyo': {'country': 'Japan', 'city': 'Tokyo', 'lat': 35.6762, 'lon': 139.6503},
-        
+        # Europe
+        'europe': {'country': 'Germany', 'city': 'Berlin', 'lat': 52.5200, 'lon': 13.4050},
+        'european': {'country': 'Germany', 'city': 'Berlin', 'lat': 52.5200, 'lon': 13.4050},
         'germany': {'country': 'Germany', 'city': 'Berlin', 'lat': 52.5200, 'lon': 13.4050},
         'berlin': {'country': 'Germany', 'city': 'Berlin', 'lat': 52.5200, 'lon': 13.4050},
-        
         'france': {'country': 'France', 'city': 'Paris', 'lat': 48.8566, 'lon': 2.3522},
         'paris': {'country': 'France', 'city': 'Paris', 'lat': 48.8566, 'lon': 2.3522},
+        'italy': {'country': 'Italy', 'city': 'Rome', 'lat': 41.9028, 'lon': 12.4964},
+        'spain': {'country': 'Spain', 'city': 'Madrid', 'lat': 40.4168, 'lon': -3.7038},
         
+        # Other major countries
+        'japan': {'country': 'Japan', 'city': 'Tokyo', 'lat': 35.6762, 'lon': 139.6503},
+        'japanese': {'country': 'Japan', 'city': 'Tokyo', 'lat': 35.6762, 'lon': 139.6503},
+        'tokyo': {'country': 'Japan', 'city': 'Tokyo', 'lat': 35.6762, 'lon': 139.6503},
         'russia': {'country': 'Russia', 'city': 'Moscow', 'lat': 55.7558, 'lon': 37.6173},
+        'russian': {'country': 'Russia', 'city': 'Moscow', 'lat': 55.7558, 'lon': 37.6173},
         'moscow': {'country': 'Russia', 'city': 'Moscow', 'lat': 55.7558, 'lon': 37.6173},
-        
         'brazil': {'country': 'Brazil', 'city': 'Brasília', 'lat': -15.8267, 'lon': -47.9218},
-        'australia': {'country': 'Australia', 'city': 'Canberra', 'lat': -35.2809, 'lon': 149.1300},
-        'canada': {'country': 'Canada', 'city': 'Ottawa', 'lat': 45.4215, 'lon': -75.6972},
+        'australia': {'country': 'Australia', 'city': 'Sydney', 'lat': -33.8688, 'lon': 151.2093},
+        'canada': {'country': 'Canada', 'city': 'Toronto', 'lat': 43.6532, 'lon': -79.3832},
+        'south korea': {'country': 'South Korea', 'city': 'Seoul', 'lat': 37.5665, 'lon': 126.9780},
+        'korea': {'country': 'South Korea', 'city': 'Seoul', 'lat': 37.5665, 'lon': 126.9780},
         
-        # Add more locations as needed
+        # Add fallback for common terms
+        'global': {'country': 'Global', 'city': 'International', 'lat': 0, 'lon': 0},
+        'international': {'country': 'Global', 'city': 'International', 'lat': 0, 'lon': 0},
+        'worldwide': {'country': 'Global', 'city': 'International', 'lat': 0, 'lon': 0},
     }
     
     text_lower = text.lower()
     
-    # Look for location mentions
+    # Look for location mentions with better matching
     for location_key, location_data in location_database.items():
-        if location_key in text_lower:
+        # Use word boundaries to avoid partial matches
+        import re
+        pattern = r'\b' + re.escape(location_key) + r'\b'
+        if re.search(pattern, text_lower):
             return {
                 'country': location_data['country'],
                 'city': location_data['city'],
@@ -173,7 +199,13 @@ def extract_location_from_article(article):
                 'longitude': location_data['lon']
             }
     
-    return None
+    # Fallback: If no specific location found, assign to "Global"
+    return {
+        'country': 'Global',
+        'city': 'International',
+        'latitude': 20.0,  # Slightly offset from 0,0 for better visibility
+        'longitude': 0.0
+    }
 
 
 def get_sentiment_label(score):
