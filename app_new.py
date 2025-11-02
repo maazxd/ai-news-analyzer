@@ -108,5 +108,5 @@ elif choice == "URL Analysis":
 elif choice == "Translation":
     run_translate_feature(fetch_article_text)
 
-elif choice == "Source Checker":
+elif choice == "Source Bias Detection":
      run_credibility_feature()
