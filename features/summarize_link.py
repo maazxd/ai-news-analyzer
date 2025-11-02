@@ -12,7 +12,7 @@ def run_summarize_link_feature(fetch_article_text):
     
     st.subheader("🔗 Summarize News from Article Link")
     url = st.text_input("Paste the news article URL here:")
-    summary_length_words = st.slider("Summary length (approx. words)", min_value=30, max_value=200, value=80, step=10)
+    summary_length_words = st.slider("Summary length (approx. words)", min_value=30, max_value=200, value=50, step=10)
     summary_length = summary_length_words * 2  # Convert to tokens (approximate)
     st.caption("Note: Summary length is approximate. Actual output may vary.")
     
