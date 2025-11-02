@@ -1,15 +1,27 @@
-"""
-News Perspective Analyzer - Compare how different news sources with varying political biases report the same story
+""""""
+
+News Perspective Analyzer - REMOVEDNews Perspective Analyzer - Compare how different news sources with varying political biases report the same story
+
 """
 
-import streamlit as st
-import requests
-import pandas as pd
+This feature has been removed from the application. The module is kept as a
+
+minimal placeholder to avoid accidental direct imports. Use the main appimport streamlit as st
+
+routing and `features` package exports to control available features.import requests
+
+"""import pandas as pd
+
 import plotly.express as px
+
 from datetime import datetime, timedelta
-from collections import defaultdict
-import re
-from collections import Counter
+
+def run_news_perspective_analyzer_feature(*args, **kwargs):from collections import defaultdict
+
+    """Placeholder: feature removed"""import re
+
+    raise RuntimeError("News Perspective Analyzer has been removed from this build.")from collections import Counter
+
 
 from utils.helpers import get_secret_or_env
 try:
@@ -340,42 +352,17 @@ def create_bias_spectrum_chart(articles):
         y='sentiment_score',
         color='bias_category',
         size=[abs(score) * 10 + 8 for score in df['sentiment_score']],
-        hover_data={
-            'source': True,
-            'credibility': True,
-            'bias_score': False,
-            'sentiment_score': ':.3f',
-            'bias_category': False
-        },
-        hover_name='title',
-        title="Political Bias vs Sentiment",
-        labels={
-            'bias_score': 'Political Bias',
-            'sentiment_score': 'Sentiment Score',
-            'bias_category': 'Source Type'
-        },
-        color_discrete_map=BIAS_COLORS,
-        height=500
-    )
-    
-    # Customize chart
-    fig.update_layout(
-        xaxis=dict(
-            tickmode='array',
-            tickvals=[-1, 0, 1],
-            ticktext=['Left', 'Center', 'Right'],
-            range=[-1.5, 1.5]
-        ),
-        yaxis=dict(
-            title='Sentiment (Negative to Positive)',
-            range=[-1.1, 1.1]
-        ),
-        showlegend=True,
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)'
-    )
-    
-    # Add reference lines
+        """
+        News Perspective Analyzer - REMOVED
+
+        This feature has been removed from the application. The module is kept as a
+        minimal placeholder to avoid accidental direct imports. Use the main app
+        routing and `features` package exports to control available features.
+        """
+
+        def run_news_perspective_analyzer_feature(*args, **kwargs):
+            raise RuntimeError("News Perspective Analyzer has been removed from this build.")
+
     fig.add_hline(y=0, line_dash="dot", line_color="gray", opacity=0.5)
     fig.add_vline(x=0, line_dash="dot", line_color="gray", opacity=0.5)
     
