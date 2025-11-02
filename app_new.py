@@ -102,7 +102,7 @@ elif choice == "Live News Feed":
 elif choice == "Article Summary":
     run_summarize_feature()
 
-elif choice == "URL Analysis":
+elif choice == "Summary from URL":
     run_summarize_link_feature(fetch_article_text)
  
 elif choice == "Translation":
