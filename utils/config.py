@@ -7,7 +7,7 @@ FEATURE_ICONS = {
     "Article Summary": "📋",
     "URL Analysis": "🔗",
     "Translation": "🌐",
-    "Source Checker": "🏛️"
+    "Source Bias Detection": "🏛️"
 }
 
 # Custom CSS styling
