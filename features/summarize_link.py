@@ -35,6 +35,17 @@ def run_summarize_link_feature(fetch_article_text):
                     except Exception as e:
                         st.error(f"Summarization failed: {e}")
                 else:
-                    st.error("Could not extract a valid article from the link. Please check the URL or try another article.")
+                    st.error("Could not extract article content from this URL. This might be due to:")
+                    st.markdown("""
+                    - **Website blocking**: Some sites block automated access
+                    - **Paywall or login required**: Content might be behind a paywall
+                    - **JavaScript-heavy site**: Content might load dynamically
+                    - **Network issues**: Connection problems
+                    
+                    **Try:**
+                    - A different news article URL
+                    - Copy-paste the article text directly using the 'Article Summary' feature
+                    - Using articles from major news sites (BBC, Reuters, etc.)
+                    """)
         else:
             st.warning("Please enter a news article URL.")
