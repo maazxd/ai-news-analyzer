@@ -107,16 +107,7 @@ def run_credibility_feature():
         if url_input.strip():
             domain = _extract_domain_fast(url_input)
             if domain:
-                # Check if we have cached results
-                try:
-                    test_url = url_input if url_input.startswith('http') else f"https://{url_input}"
-                    cached_result = _cached_source_analysis(test_url)
-                    if cached_result[0] is not None:  # Has cached data
-                        st.success(f"🚀 **{domain}** - Found in cache (instant results!)")
-                    else:
-                        st.caption(f"🌐 Ready to analyze: **{domain}**")
-                except:
-                    st.caption(f"🌐 Ready to analyze: **{domain}**")
+                st.caption(f"🌐 Ready to analyze: **{domain}**")
         
         if st.button("🔍 Analyze Source", use_container_width=True, type="primary"):
             _analyze_single_source(url_input, _normalize_url)
