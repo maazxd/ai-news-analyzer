@@ -167,16 +167,11 @@ def run_paste_news_feature(model, vectorizer, stop_words, preprocess_func, fetch
         
         with col2:
             st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
-            author_input = st.text_input(
-                "Author Name",
-                placeholder="e.g. John Doe",
-                help="Optional: Enter the author's name"
-            )
-            source_url = st.text_input(
-                "Source URL",
-                placeholder="https://example.com/article",
-                help="Optional: Provide the source URL"
-            )
+            # Additional content input area (future features)
+            st.markdown("**Analysis Tips:**")
+            st.caption("• Longer articles provide more accurate analysis")
+            st.caption("• Include headlines for better context")
+            st.caption("• URLs are automatically analyzed")
 
         # Local helpers (scoped to this feature)
         def _get_article_text_or_content(value: str) -> str:
@@ -202,8 +197,8 @@ def run_paste_news_feature(model, vectorizer, stop_words, preprocess_func, fetch
         content_text = _get_article_text_or_content(user_val) if user_val else ""
         combined_text = ". ".join([t for t in [title_text, content_text] if t]).strip()
 
-        # Auto-use pasted URL as source if source_url was left blank
-        effective_source_url = source_url.strip() if source_url.strip() else (user_val if re.match(r'^https?://', user_val) else "")
+        # Auto-detect source URL from user input if it's a URL (for internal processing only)
+        effective_source_url = user_val if re.match(r'^https?://', user_val) else ""
 
         if combined_text.strip():
             with st.spinner("🔄 Analyzing news article..."):
@@ -224,28 +219,6 @@ def run_paste_news_feature(model, vectorizer, stop_words, preprocess_func, fetch
                     st.metric("Assessment", "Not Applicable")
                 with col3:
                     st.metric("Confidence", "N/A")
-                
-                # Author Views (inferred from article text)
-                try:
-                    av_label, av_scores = classify_political_leaning_text(combined_text)
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    st.markdown("#### 👤 Author Perspective")
-                    avc1, avc2 = st.columns([1, 3])
-                    with avc1:
-                        st.metric("Political Leaning", av_label.capitalize())
-                    with avc2:
-                        st.caption("💡 Inferred from article language patterns. This is for informational purposes only.")
-                except Exception:
-                    pass
-                
-                if effective_source_url:
-                    lean_label = get_source_political_leaning(effective_source_url)
-                    st.markdown("#### 🏢 Source Information")
-                    lc1, lc2 = st.columns([1, 3])
-                    with lc1:
-                        st.metric("Company Leaning", lean_label.capitalize() if lean_label != 'unknown' else 'Unknown')
-                    with lc2:
-                        st.caption("💡 Opinion/analysis pieces are not labeled as real or fake.")
             else:
                 # Enhanced prediction with better confidence calculation
                 proba = _predict_proba_ensemble(combined_text, effective_source_url, model, vectorizer, preprocess_func, stop_words)
@@ -321,27 +294,4 @@ def run_paste_news_feature(model, vectorizer, stop_words, preprocess_func, fetch
                     **Recommendation**: Always cross-check important claims with multiple reliable sources.
                     """)
 
-                # Author Views (inferred from article text)
-                try:
-                    av_label, av_scores = classify_political_leaning_text(combined_text)
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    st.markdown("#### 👤 Author Analysis")
-                    avc1, avc2 = st.columns([1, 3])
-                    with avc1:
-                        st.metric("Political Leaning", av_label.capitalize())
-                    with avc2:
-                        st.caption("💡 Inferred from writing style and language patterns. This does not affect the authenticity verdict.")
-                except Exception:
-                    pass
-
-                # Company/source leaning (display only; does not affect verdict)
-                if effective_source_url:
-                    lean_label = get_source_political_leaning(effective_source_url)
-                    lc1, lc2 = st.columns([1, 2])
-                    lc1.metric("Company Leaning", lean_label.capitalize() if lean_label != 'unknown' else 'Unknown')
-                    lc2.caption("leaning doesnt affect the verdict.")
-
-        if author_input.strip():
-            st.info(f"**Author:** {author_input}")
-    
     st.markdown("---")
