@@ -14,7 +14,6 @@ from utils import (
 from features import (
     run_paste_news_feature,
     run_fetch_news_feature,
-    run_summarize_feature,
     run_summarize_link_feature,
     run_ai_insight_feature,
     run_translate_feature,
@@ -98,9 +97,6 @@ if choice == "News Verification":
 
 elif choice == "Live News Feed":
     run_fetch_news_feature()
-
-elif choice == "Article Summary":
-    run_summarize_feature()
 
 elif choice == "Summary from URL":
     run_summarize_link_feature(fetch_article_text)
