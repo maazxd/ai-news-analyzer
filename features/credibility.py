@@ -1,10 +1,56 @@
+
 """
 Source Credibility Analyzer Feature
 Evaluates credibility and political leaning of news sources
 """
 import streamlit as st
 import re
+from functools import lru_cache
+from urllib.parse import urlparse
 from utils.source_data import get_source_credibility, get_source_political_leaning
+
+
+# Cache results for recently analyzed sources (improves performance)
+@lru_cache(maxsize=128)
+def _cached_source_analysis(normalized_url: str):
+    """Cache analysis results to avoid repeated API/database calls"""
+    try:
+        cred_label, cred_desc = get_source_credibility(normalized_url)
+        lean_label = get_source_political_leaning(normalized_url)
+        return cred_label, cred_desc, lean_label, None
+    except Exception as e:
+        return None, None, None, str(e)
+
+
+def _extract_domain_fast(url: str) -> str:
+    """Fast domain extraction for validation"""
+    try:
+        if not re.match(r"^https?://", url):
+            url = "https://" + url
+        domain = urlparse(url).netloc.lower()
+        # Remove www. prefix for consistency
+        if domain.startswith('www.'):
+            domain = domain[4:]
+        return domain
+    except:
+        return ""
+
+
+def _validate_url_format(url: str) -> tuple[bool, str]:
+    """Quick validation before processing"""
+    if not url or len(url.strip()) < 3:
+        return False, "URL too short"
+    
+    # Check for basic URL patterns
+    url = url.strip().lower()
+    if not any(pattern in url for pattern in ['.com', '.org', '.net', '.edu', '.gov', '.co.', '.news']):
+        return False, "Invalid domain format"
+    
+    # Check for suspicious patterns
+    if any(char in url for char in ['<', '>', '"', "'"]):
+        return False, "Invalid characters in URL"
+    
+    return True, ""
 
 
 def run_credibility_feature():
@@ -28,31 +74,48 @@ def run_credibility_feature():
     )
 
     def _normalize_url(s: str) -> str:
+        """Enhanced URL normalization with validation"""
         s = (s or "").strip()
         if not s:
             return ""
-        # allow plain domains like example.com
+        
+        # Quick validation first
+        is_valid, error_msg = _validate_url_format(s)
+        if not is_valid:
+            st.error(f"⚠️ {error_msg}")
+            return ""
+        
+        # Normalize URL format
         if not re.match(r"^https?://", s):
             s = "https://" + s
         return s
 
     st.markdown("<br>", unsafe_allow_html=True)
     
+    # Add quick domain preview for user feedback
+    if url_input.strip():
+        domain = _extract_domain_fast(url_input)
+        if domain:
+            st.caption(f"🌐 Analyzing domain: **{domain}**")
+    
     if st.button("🔍 Analyze Source", use_container_width=True, type="primary"):
         if not url_input.strip():
             st.warning("⚠️ Please enter a URL or domain to analyze.")
         else:
             url = _normalize_url(url_input)
-            try:
-                with st.spinner("🔄 Analyzing source credibility..."):
-                    cred_label, cred_desc = get_source_credibility(url)
-                    lean_label = get_source_political_leaning(url)
+            if url:  # Only proceed if normalization succeeded
+                # Use cached analysis for better performance
+                cred_label, cred_desc, lean_label, error = _cached_source_analysis(url)
                 
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.markdown("### 📊 Analysis Results")
+                if error:
+                    st.error(f"❌ Could not analyze source: {error}")
+                else:
+                    # Show results immediately (no artificial spinner delay)
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.markdown("### 📊 Analysis Results")
 
-                # Display results in clean metrics
-                col1, col2, col3 = st.columns([1, 1, 1])
+                    # Display results in clean metrics
+                    col1, col2, col3 = st.columns([1, 1, 1])
                 
                 with col1:
                     st.markdown("#### 🏆 Credibility")
@@ -106,6 +169,8 @@ def run_credibility_feature():
                     st.info("💡 **Note:** This source is not in our database yet. Exercise caution and cross-reference with multiple reputable sources.")
                 else:
                     st.caption("ℹ️ Source assessment based on established credibility databases and journalistic standards.")
-                    
-            except Exception as e:
-                st.error(f"❌ Could not analyze source: {e}")
+
+# Clear cache when needed (optional - for development/testing)
+def clear_credibility_cache():
+    """Clear the analysis cache to force fresh lookups"""
+    _cached_source_analysis.cache_clear()
