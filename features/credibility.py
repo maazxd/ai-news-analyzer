@@ -258,6 +258,8 @@ def _display_analysis_results(cred_label, cred_desc, lean_label):
             st.info(f"**{leaning_display}**")
         elif lean_label == 'right-leaning':
             st.info(f"**{leaning_display}**")
+        elif lean_label == 'far-right':
+            st.error(f"**Far-Right**")
         elif lean_label == 'center':
             st.success(f"**{leaning_display}**")
         else:

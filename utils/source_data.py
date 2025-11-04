@@ -34,7 +34,7 @@ SOURCE_CREDIBILITY = {
     "deccanherald.com": ("High Credibility", "Deccan Herald newspaper."),
     "news18.com": ("Mixed Credibility", "Network18 news network."),
     "ndtv.com": ("Mixed Credibility", "Mainstream Indian news network credibility diluted after Adani acquisition."),
-    "opindia.com": ("dubious", "Known for right-leaning bias and misinformation."),
+    "opindia.com": ("Questionable", "Far-right organization known for bias and misinformation."),
 
     # Times Group domains (subdomain‑specific + base)
     "economictimes.indiatimes.com": ("High Credibility", "The Economic Times (business)."),
@@ -74,8 +74,8 @@ SOURCE_POLITICAL_LEANING = {
     "indiatoday.in": "center",
     "deccanherald.com": "center",
     "news18.com": "right-leaning",
-    "ndtv.com": "right-leaning",
-    "opindia.com": "right-leaning",
+    "ndtv.com": "right-leaning", 
+    "opindia.com": "far-right",
 
     # Times Group (subdomain‑specific + base)
     "economictimes.indiatimes.com": "center",
