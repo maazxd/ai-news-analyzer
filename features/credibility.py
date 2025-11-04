@@ -67,8 +67,8 @@ def run_credibility_feature():
     """, unsafe_allow_html=True)
     
     # Create tabs for single vs batch analysis
-    tab1, tab2 = st.tabs(["🔍 Single Source", "📊 Batch Analysis"])
-    
+    tab1, tab2 = st.tabs(["🔍 Single Source", "📊 Analyze Multiple Sources"])
+
     with tab1:
         st.markdown("#### 🔗 Enter Source Information")
         
@@ -158,7 +158,7 @@ def _analyze_single_source(url_input, normalize_func):
 
 def _analyze_batch_sources(sources):
     """Analyze multiple sources efficiently"""
-    st.markdown("### 📊 Batch Analysis Results")
+    st.markdown("### 📊  Analysis Results")
     
     progress_bar = st.progress(0)
     results = []
@@ -199,6 +199,9 @@ def _analyze_batch_sources(sources):
         df = df[df['error'].isna() | (df['error'] == '')]  # Filter out errors for main table
         
         if not df.empty:
+            # Remove error column from display and only show relevant columns
+            display_df = df[['domain', 'credibility', 'leaning']].copy()
+            
             # Color code the credibility column
             def color_credibility(val):
                 if val == 'High Credibility':
@@ -209,7 +212,7 @@ def _analyze_batch_sources(sources):
                     return 'background-color: #f8d7da'
                 return ''
             
-            styled_df = df.style.applymap(color_credibility, subset=['credibility'])
+            styled_df = display_df.style.applymap(color_credibility, subset=['credibility'])
             st.dataframe(styled_df, use_container_width=True)
             
             # Quick statistics
