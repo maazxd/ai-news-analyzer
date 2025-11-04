@@ -180,7 +180,7 @@ def run_paste_news_feature(model, vectorizer, stop_words, preprocess_func, fetch
                 # Reserved for small controls or future metadata (kept empty intentionally)
                 st.write("")
 
-            submitted = st.form_submit_button("🔍 Analyze News Authenticity")
+            submitted = st.form_submit_button("🔍 Analyze")
 
     # Small spacer to separate form from results/messages
     st.markdown("<br>", unsafe_allow_html=True)
