@@ -165,15 +165,9 @@ def run_paste_news_feature(model, vectorizer, stop_words, preprocess_func, fetch
                 help="You can paste article content directly or provide a URL for analysis"
             )
         
-        with col2:
-            st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+    
             # Additional content input area (future features)
-            st.markdown("**Analysis Tips:**")
-            st.caption("• Longer articles provide more accurate analysis")
-            st.caption("• Include headlines for better context")
-            st.caption("• URLs are automatically analyzed")
-
-        # Local helpers (scoped to this feature)
+                    # Local helpers (scoped to this feature)
         def _get_article_text_or_content(value: str) -> str:
             value = (value or "").strip()
             if not value:
