@@ -1,24 +1,122 @@
 """
 News Trends Dashboard Feature
-Real-time trending topics analysis with bias distribution
+Real-time trending topics with bias analysis and credibility scoring
 """
 import streamlit as st
 import requests
-import pandas as pd
-from datetime import datetime, timedelta
-from collections import Counter
-import re
-from functools import lru_cache
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import pandas as pd
+from collections import Counter, defaultdict
+from datetime import datetime, timedelta
+import re
+from functools import lru_cache
+import os
+
+# Get API key from environment or use a default (you should set this in your environment)
+NEWS_API_KEY = os.getenv('NEWS_API_KEY')
+
+# Cache for trends data
+_trends_cache = {}
+
+def _get_cached_trends(cache_key):
+    """Get cached trends data"""
+    return _trends_cache.get(cache_key)
+
+def _set_cached_trends(cache_key, data):
+    """Set cached trends data"""
+    _trends_cache[cache_key] = {
+        'data': data,
+        'timestamp': datetime.now()
+    }
+
+def _clear_old_cache():
+    """Clear cache entries older than 15 minutes"""
+    cutoff = datetime.now() - timedelta(minutes=15)
+    keys_to_remove = []
+    for key, value in _trends_cache.items():
+        if value['timestamp'] < cutoff:
+            keys_to_remove.append(key)
+    for key in keys_to_remove:
+        del _trends_cache[key]
 from utils.source_data import get_source_political_leaning, get_source_credibility
+from urllib.parse import urlparse
 
 
 # Cache trending data for 15 minutes to avoid excessive API calls
-@lru_cache(maxsize=32)
-def _get_cached_trends(cache_key: str):
-    """Cache trending topics data with timestamp"""
-    return _fetch_trending_topics_raw()
+@st.cache_data(ttl=900)  # Cache for 15 minutes
+def fetch_trending_news():
+    """Fetch trending news from multiple sources"""
+    try:
+        # Fetch more articles from multiple categories for comprehensive coverage
+        categories = ['general', 'technology', 'business', 'health', 'science', 'sports']
+        all_articles = []
+        
+        for category in categories:
+            response = requests.get(
+                'https://newsapi.org/v2/top-headlines',
+                params={
+                    'country': 'us',
+                    'category': category,
+                    'pageSize': 20,  # Increased from 10 to 20 per category
+                    'apiKey': NEWS_API_KEY
+                },
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                articles = data.get('articles', [])
+                
+                # Add category info and filter valid articles
+                for article in articles:
+                    if (article.get('title') and 
+                        article.get('url') and 
+                        article.get('title') != '[Removed]' and
+                        article.get('description')):
+                        article['category'] = category
+                        all_articles.append(article)
+        
+        # Also fetch from everything endpoint for more diverse content
+        response = requests.get(
+            'https://newsapi.org/v2/everything',
+            params={
+                'q': 'breaking OR trending OR latest',
+                'language': 'en',
+                'sortBy': 'popularity',
+                'pageSize': 50,  # Get 50 more articles
+                'apiKey': NEWS_API_KEY
+            },
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            articles = data.get('articles', [])
+            
+            for article in articles:
+                if (article.get('title') and 
+                    article.get('url') and 
+                    article.get('title') != '[Removed]' and
+                    article.get('description')):
+                    article['category'] = 'general'
+                    all_articles.append(article)
+        
+        # Remove duplicates based on title
+        seen_titles = set()
+        unique_articles = []
+        for article in all_articles:
+            title = article.get('title', '').lower()
+            if title not in seen_titles and len(title) > 10:
+                seen_titles.add(title)
+                unique_articles.append(article)
+        
+        return unique_articles[:100]  # Return up to 100 unique articles
+        
+    except Exception as e:
+        st.error(f"Error fetching news: {e}")
+        return []
 
 
 def _fetch_trending_topics_raw():
@@ -122,25 +220,50 @@ def _analyze_source_bias_distribution(articles):
     """Analyze how different political leanings cover trending topics"""
     bias_data = {'left-leaning': 0, 'center': 0, 'right-leaning': 0, 'unknown': 0}
     credibility_data = {'High Credibility': 0, 'Mixed Credibility': 0, 'Low Credibility': 0, 'Unknown': 0}
-    
+
     for article in articles:
-        source_name = article.get('source', {}).get('name', '')
-        source_url = f"https://{source_name.lower().replace(' ', '')}.com"
-        
-        # Get political leaning
-        leaning = get_source_political_leaning(source_url)
+        # Prefer extracting domain from article URL if available
+        article_url = article.get('url') or ''
+        domain = ''
+        if article_url and re.match(r'^https?://', article_url):
+            try:
+                domain = urlparse(article_url).netloc.lower()
+            except Exception:
+                domain = ''
+
+        # Fallback: use source name to guess domain (best-effort)
+        if not domain:
+            source_name = article.get('source', {}).get('name', '')
+            if source_name:
+                guessed = source_name.lower().replace(' ', '')
+                # do not assume .com blindly; prefer guessed as domain only
+                domain = guessed
+
+        # Build a normalized input for source lookup
+        lookup_input = domain if domain else ''
+
+        # Get political leaning safely
+        try:
+            leaning = get_source_political_leaning(lookup_input)
+        except Exception:
+            leaning = 'unknown'
+
         if leaning in bias_data:
             bias_data[leaning] += 1
         else:
             bias_data['unknown'] += 1
-            
-        # Get credibility
-        credibility, _ = get_source_credibility(source_url)
+
+        # Get credibility safely
+        try:
+            credibility, _ = get_source_credibility(lookup_input)
+        except Exception:
+            credibility = 'Unknown'
+
         if credibility in credibility_data:
             credibility_data[credibility] += 1
         else:
             credibility_data['Unknown'] += 1
-    
+
     return bias_data, credibility_data
 
 
@@ -173,11 +296,39 @@ def run_news_trends_feature():
         
         # Fetch trending data
         cache_key = f"trends_{datetime.now().strftime('%Y%m%d_%H%M')}"
-        articles = _get_cached_trends(cache_key)
+        _clear_old_cache()
+        
+        cached_data = _get_cached_trends(cache_key)
+        if cached_data:
+            articles = cached_data['data']
+        else:
+            articles = fetch_trending_news()
+            if articles:
+                _set_cached_trends(cache_key, articles)
         
         if articles:
-            # Extract trending keywords
-            trending_keywords = _extract_trending_keywords(articles)
+            # Display total count
+            st.success(f"📊 Found {len(articles)} trending articles")
+            
+            # Add category filter
+            categories = list(set([article.get('category', 'general') for article in articles]))
+            if len(categories) > 1:
+                selected_category = st.selectbox(
+                    "Filter by Category:",
+                    options=['All'] + categories,
+                    index=0
+                )
+                
+                # Filter articles by category if selected
+                if selected_category != 'All':
+                    filtered_articles = [a for a in articles if a.get('category') == selected_category]
+                else:
+                    filtered_articles = articles
+            else:
+                filtered_articles = articles
+            
+            # Extract trending keywords from filtered articles
+            trending_keywords = _extract_trending_keywords(filtered_articles)
             
             # Display top trending keywords
             st.markdown("#### 🏷️ Top Trending Keywords")
@@ -205,31 +356,51 @@ def run_news_trends_feature():
                     keyword_tags.append(f"`{keyword}` ({count})")
                 st.markdown(" • ".join(keyword_tags))
             
-            # Recent headlines
-            st.markdown("#### 📰 Latest Headlines")
-            for i, article in enumerate(articles[:8]):
-                with st.expander(f"📄 {article.get('title', 'No title')[:80]}..."):
-                    col1, col2 = st.columns([3, 1])
-                    with col1:
-                        st.write(f"**Source:** {article.get('source', {}).get('name', 'Unknown')}")
-                        st.write(f"**Description:** {article.get('description', 'No description')}")
-                        if article.get('url'):
-                            st.markdown(f"[Read full article]({article['url']})")
-                    with col2:
-                        # Show source credibility
-                        source_name = article.get('source', {}).get('name', '')
-                        source_url = f"https://{source_name.lower().replace(' ', '')}.com"
-                        credibility, _ = get_source_credibility(source_url)
-                        leaning = get_source_political_leaning(source_url)
-                        
-                        if credibility == "High Credibility":
-                            st.success("✅ High Credibility")
-                        elif credibility == "Mixed Credibility":
-                            st.warning("⚠️ Mixed Credibility")
-                        else:
-                            st.info("❓ Unknown Credibility")
-                        
-                        st.caption(f"Leaning: {leaning.title()}")
+            # Pagination for articles
+            articles_per_page = 25
+            total_pages = (len(filtered_articles) + articles_per_page - 1) // articles_per_page
+            
+            if total_pages > 1:
+                page = st.selectbox(
+                    f"Page (showing {len(filtered_articles)} articles):",
+                    options=list(range(1, total_pages + 1)),
+                    index=0
+                )
+                start_idx = (page - 1) * articles_per_page
+                end_idx = start_idx + articles_per_page
+                page_articles = filtered_articles[start_idx:end_idx]
+            else:
+                page_articles = filtered_articles
+            
+            # Recent headlines in grid format
+            st.markdown(f"#### � Headlines (Page {page if total_pages > 1 else 1})")
+            
+            # Display articles in a compact grid
+            for i in range(0, len(page_articles), 3):
+                cols = st.columns(3)
+                
+                for j, col in enumerate(cols):
+                    if i + j < len(page_articles):
+                        article = page_articles[i + j]
+                        with col:
+                            # Create compact article card
+                            st.markdown(f"""
+                            <div style='border: 1px solid #e0e0e0; padding: 12px; margin: 8px 0; border-radius: 6px; background: #fafafa; height: 200px; overflow: hidden;'>
+                                <h5 style='margin: 0 0 8px 0; color: #333; font-size: 0.9em; line-height: 1.2;'>{article.get('title', 'No Title')[:80]}{'...' if len(article.get('title', '')) > 80 else ''}</h5>
+                                <p style='margin: 0 0 8px 0; color: #666; font-size: 0.8em; line-height: 1.1;'>{article.get('description', 'No description')[:100]}{'...' if len(article.get('description', '')) > 100 else ''}</p>
+                                <div style='position: absolute; bottom: 12px; left: 12px; right: 12px;'>
+                                    <div style='font-size: 0.7em; color: #888; margin-bottom: 6px;'>
+                                        <strong>{article.get('source', {}).get('name', 'Unknown')}</strong>
+                                        {' • ' + article.get('category', 'general').title() if article.get('category') else ''}
+                                    </div>
+                                    <a href="{article.get('url', '#')}" target="_blank" style='
+                                        background: #007bff; color: white; padding: 4px 8px; 
+                                        text-decoration: none; border-radius: 3px; font-size: 0.75em;
+                                        display: inline-block;
+                                    '>Read More</a>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
         
         else:
             st.warning("⚠️ Unable to fetch trending data. Please try again later.")
@@ -339,8 +510,12 @@ def run_news_trends_feature():
                             with st.expander(f"{source_name} ({leaning})"):
                                 st.write(f"**Title:** {article.get('title')}")
                                 st.write(f"**Description:** {article.get('description')}")
-                                if article.get('url'):
-                                    st.markdown(f"[Read full article]({article['url']})")
+                                # Safe link to the article if available
+                                article_url = article.get('url') or ''
+                                if article_url and re.match(r'^https?://', article_url):
+                                    st.markdown(f"[Read full article]({article_url})")
+                                else:
+                                    st.write("🔗 Full article link unavailable")
                     else:
                         st.info(f"No articles found specifically about '{selected_topic}'")
 
@@ -348,4 +523,5 @@ def run_news_trends_feature():
 # Clear cache function for development
 def clear_trends_cache():
     """Clear the trends cache"""
-    _get_cached_trends.cache_clear()
+    global _trends_cache
+    _trends_cache.clear()
