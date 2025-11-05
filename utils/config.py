@@ -5,6 +5,7 @@ FEATURE_ICONS = {
     "News Verification": "📰",
     "Live News Feed": "📡", 
     "Summary from URL": "🔗",
+    "News Trends Dashboard": "📈",
     "Translation": "🌐",
     "Source Bias Detection": "🏛️"
 }
