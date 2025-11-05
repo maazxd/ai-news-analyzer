@@ -15,7 +15,6 @@ from features import (
     run_paste_news_feature,
     run_fetch_news_feature,
     run_summarize_link_feature,
-    run_news_trends_feature,
     run_ai_insight_feature,
     run_translate_feature,
     run_credibility_feature
@@ -101,9 +100,6 @@ elif choice == "Live News Feed":
 
 elif choice == "Summary from URL":
     run_summarize_link_feature(fetch_article_text)
-
-elif choice == "News Trends Dashboard":
-    run_news_trends_feature()
  
 elif choice == "Translation":
     run_translate_feature(fetch_article_text)
