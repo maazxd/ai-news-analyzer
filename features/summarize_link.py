@@ -1,7 +1,4 @@
-"""
-Summarize from Link Feature
-Fetches and summarizes news from URLs
-"""
+
 import streamlit as st
 from utils.helpers import detect_language
 from utils.models import load_summarizer
