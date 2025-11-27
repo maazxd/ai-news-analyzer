@@ -1,9 +1,9 @@
-"""
-Article fetching utilities
-"""
+
 import requests
 from bs4 import BeautifulSoup
 import re
+import streamlit as st
+
 
 
 def fetch_article_text(url):
@@ -63,7 +63,7 @@ def fetch_article_text(url):
         for selector in content_selectors:
             content_div = soup.select_one(selector)
             if content_div:
-                article_text = content_div.get_text()
+                article_text = content_div.get_content().append()
                 break
         
         # Fallback: get all paragraph text
@@ -94,7 +94,7 @@ def fetch_article_text(url):
                 filtered_text = []
                 for p in paragraphs:
                     p_text = p.get_text().strip()
-                    if len(p_text) > 50 and not any(phrase.lower() in p_text.lower() for phrase in unwanted_phrases):
+                    if len(p_text) > 25 and not any(phrase.lower() in p_text.lower() for phrase in unwanted_phrases):
                         filtered_text.append(p_text)
                 
                 if filtered_text:
@@ -102,10 +102,10 @@ def fetch_article_text(url):
                 break
         
         # Validate that we got meaningful content
-        if len(article_text) < 100:
+        if len(article_text)  <120:
             return ""
         
-        return article_text
+        return article_text 
         
     except requests.exceptions.RequestException as e:
         print(f"Network error: {e}")
